@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus v4.7 - Tactical Interactivity</title>
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0e14'/%3E%3Cpath d='M20 20h60v60H20z' fill='none' stroke='%2300f2ff' stroke-width='3'/%3E%3Cpath d='M50 20v60M20 50h60' stroke='%2300f2ff' stroke-width='1' opacity='0.5'/%3E%3Ccircle cx='50' cy='50' r='8' fill='none' stroke='%23ff9f1c' stroke-width='3'/%3E%3Ccircle cx='80' cy='50' r='12' fill='none' stroke='%2300f2ff' stroke-width='2'/%3E%3Ccircle cx='20' cy='50' r='12' fill='none' stroke='%2300f2ff' stroke-width='2'/%3E%3C/svg%3E">
+
+    <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --glass: rgba(15, 15, 15, 0.85);
+            --cyan: #00f2ff;
+            --border: rgba(0, 242, 255, 0.4);
+            --orange: #ff9f1c;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #0a0e14;
+            background-image: 
+                radial-gradient(circle at 20% 0%, rgba(0, 242, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 40%),
+                linear-gradient(to bottom, #0a0e14 0%, #1a2a3a 100%);
+        }
+
+        #stadium-backdrop {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            pointer-events: none;
+            overflow: hidden;
+            opacity: 0.6;
+        }
+
+        .stadium-light {
+            position: absolute;
+            top: -50px;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+            filter: blur(40px);
+        }
+        .light-left { left: 10%; }
+        .light-right { right: 10%; }
+
+        .stands-silhouette {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 40%;
+            background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent, black);
+        }
+
+        #sidebar {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            z-index: 1000;
+            width: 86px;
+            background: var(--glass);
+            border-radius: 15px;
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 6px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(12px);
+            cursor: move;
+        }
+
+        /* ZONA DE ESCUDOS DERECHA - MEJORADA Y MODIFICABLE */
+        #logo-zone {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .team-logo-slot {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .team-logo-slot:hover {
+            border-color: var(--cyan);
+            background: rgba(0, 242, 255, 0.1);
+            transform: scale(1.05);
+        }
+
+        .team-logo-slot img {
+            width: 85%;
+            height: 85%;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .placeholder-icon {
+            color: var(--cyan);
+            opacity: 0.3;
+            font-size: 20px;
+            pointer-events: none;
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            width: 100%;
+        }
+
+        .group-header {
+            grid-column: span 2;
+            font-size: 7px;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 6px;
+            margin-bottom: 2px;
+            text-align: center;
+            font-weight: bold;
+            opacity: 0.9;
+        }
+
+        .tool-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            color: white;
+            transition: 0.2s;
+            position: relative;
+            touch-action: manipulation;
+        }
+
+        .tool-btn:hover {
+            background: rgba(0, 242, 255, 0.15);
+            border-color: var(--cyan);
+            transform: scale(1.05);
+        }
+
+        .tool-btn.active {
+            background: var(--cyan);
+            color: #000;
+            border: none;
+            box-shadow: 0 0 12px var(--cyan);
+        }
+
+        .btn-img {
+            width: 26px;
+            height: 26px;
+            object-fit: contain;
+            pointer-events: none;
+        }
+
+        .svg-icon {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+        }
+
+        @media screen and (max-width: 768px) {
+            #sidebar {
+                width: 100vw;
+                height: auto;
+                top: auto;
+                bottom: 0px;
+                left: 0px;
+                flex-direction: row;
+                justify-content: center;
+                border-radius: 15px 15px 0 0;
+                padding: 10px 0;
+                overflow-x: auto;
+            }
+            #logo-zone { top: 10px; right: 10px; scale: 0.7; }
+            .grid-layout {
+                display: flex;
+                flex-direction: row;
+                gap: 8px;
+                padding: 0 15px;
+            }
+            .group-header { display: none; }
+            #main-wrapper { margin-bottom: 80px; }
+            #prop-panel { bottom: 100px; left: 15px; right: 15px; justify-content: space-around; }
+        }
+
+        #main-wrapper {
+            position: relative;
+            perspective: 1000px;
+            transform-style: preserve-3d;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #canvas-container {
+            border: 3px solid rgba(255, 255, 255, 0.85);
+            border-radius: 6px;
+            overflow: hidden;
+            background: #2E5F36;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.2), 0 20px 60px rgba(0, 0, 0, 0.8);
+            transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.8s ease;
+        }
+
+        #canvas-container.is-3d {
+            transform: rotateX(40deg);
+            box-shadow: 0 80px 120px rgba(0, 0, 0, 0.9), 0 -10px 40px rgba(0, 242, 255, 0.2);
+        }
+
+        #prop-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 120px;
+            z-index: 1001;
+            background: var(--glass);
+            padding: 10px 15px;
+            border-radius: 15px;
+            border: 1px solid var(--border);
+            display: none;
+            flex-direction: row;
+            gap: 10px;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+        }
+
+        .color-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: 0.2s;
+        }
+
+        .color-dot:hover {
+            transform: scale(1.2);
+            border-color: white;
+        }
+
+        .dash-btn {
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            font-size: 9px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .dash-btn:hover {
+            background: rgba(0, 242, 255, 0.2);
+        }
+
+        #export-btn {
+            position: relative;
+            margin-top: 15px;
+            z-index: 1001;
+            padding: 10px 18px;
+            border-radius: 12px;
+            background: rgba(15, 15, 15, 0.85);
+            color: white;
+            font-weight: bold;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            font-size: 11px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        #export-btn:hover {
+            background: var(--cyan);
+            color: black;
+            border-color: var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.6);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="stadium-backdrop">
+        <div class="stadium-light light-left"></div>
+        <div class="stadium-light light-right"></div>
+        <div class="stands-silhouette"></div>
+    </div>
+
+    <div id="logo-zone">
+        <div class="team-logo-slot" onclick="document.getElementById('shield-input-1').click()" title="Clic para cambiar Escudo Local">
+            <img id="shield-img-1" src="NEXUS SOCCER METHODOLGY (1).png.jpg" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <div class="placeholder-icon" style="display:none;">⚽</div>
+            <input type="file" id="shield-input-1" hidden accept="image/*" onchange="updateShield(event, 'shield-img-1')">
+        </div>
+        <div class="team-logo-slot" onclick="document.getElementById('shield-input-2').click()" title="Clic para cambiar Escudo Visitante">
+            <img id="shield-img-2" style="display:none;">
+            <div class="placeholder-icon">🛡️</div>
+            <input type="file" id="shield-input-2" hidden accept="image/*" onchange="updateShield(event, 'shield-img-2')">
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <div class="grid-layout">
+            <span class="group-header">Vista</span>
+            <button class="tool-btn active" id="btn-3d" title="Alternar Modo de Vista"
+                style="grid-column: span 2; width: 100%; border: 1px solid var(--orange); color: #000; background: var(--orange); font-size: 10px; box-shadow: 0 0 12px var(--orange); font-weight: bold;">🌍
+                3D TÁCTICO</button>
+
+            <span class="group-header">Pizarra</span>
+            <button class="tool-btn active" id="btn-move" onclick="setMode('move')" title="Mover (V)">🖐️</button>
+            <button class="tool-btn" id="btn-arrow" onclick="setMode('arrow')" title="Flecha">↗️</button>
+            <button class="tool-btn" id="btn-line" onclick="setMode('line')" title="Línea Simple">⟋</button>
+            <button class="tool-btn" id="btn-curve" onclick="setMode('curve')" title="Curva">↪️</button>
+            <button class="tool-btn" id="btn-poly" onclick="setMode('poly')" title="Polígono">⬢</button>
+            <button class="tool-btn" id="btn-zone" onclick="setMode('zone')" title="Zona">🔳</button>
+            <button class="tool-btn" onclick="undo()" title="Deshacer (Ctrl+Z)"
+                style="grid-column: span 2; width: 100%; font-size: 14px;">↩️</button>
+
+            <span class="group-header">Equipo</span>
+            <button class="tool-btn" onclick="addPiece('player', '#a30000')" style="color: #ff4d4d;">👕</button>
+            <button class="tool-btn" onclick="addPiece('player', '#1a3a5a')" style="color: #3498db;">🎽</button>
+            <button class="tool-btn" onclick="addPiece('check')" style="color: #34C759;" title="Bien">✅</button>
+            <button class="tool-btn" onclick="addPiece('cross')" style="color: #FF3B30;" title="Mal">❌</button>
+
+            <span class="group-header">Entreno</span>
+            <button class="tool-btn" onclick="addPiece('ball')">⚽</button>
+            <button class="tool-btn" onclick="addPiece('goal')">🥅</button>
+            <button class="tool-btn" onclick="addPiece('cone')"><img id="cone-btn-img" class="btn-img" /></button>
+            <button class="tool-btn" onclick="addPiece('valla')"><img id="valla-btn-img" class="btn-img" /></button>
+            <button class="tool-btn" onclick="addPiece('wall')"><img id="wall-btn-img" class="btn-img" /></button>
+            <button class="tool-btn" onclick="addPiece('dummy')"><img id="dummy-btn-img" class="btn-img" /></button>
+
+            <span class="group-header">Acción</span>
+            <button class="tool-btn" onclick="duplicateSelected()" title="Clonar (C)" style="color: var(--cyan);">
+                <svg class="svg-icon" viewBox="0 0 24 24">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+            </button>
+            <button class="tool-btn" onclick="deleteSelected()" title="Eliminar (Supr)"
+                style="color: #ff4d4d;">🗑️</button>
+        </div>
+    </div>
+
+    <div id="main-wrapper">
+        <div id="canvas-container" class="is-3d"></div>
+    </div>
+
+    <button id="export-btn" type="button" onclick="exportImage()">📥 Exportar Ejercicio</button>
+
+    <div id="prop-panel">
+        <div class="color-grid">
+            <div class="color-dot" style="background:#FFFFFF;" onclick="applyColor('#FFFFFF')"></div>
+            <div class="color-dot" style="background:#000000;" onclick="applyColor('#000000')"></div>
+            <div class="color-dot" style="background:#FF3B30;" onclick="applyColor('#FF3B30')"></div>
+            <div class="color-dot" style="background:#FF9500;" onclick="applyColor('#FF9500')"></div>
+            <div class="color-dot" style="background:#FFCC00;" onclick="applyColor('#FFCC00')"></div>
+            <div class="color-dot" style="background:#34C759;" onclick="applyColor('#34C759')"></div>
+            <div class="color-dot" style="background:#00F2FF;" onclick="applyColor('#00F2FF')"></div>
+            <div class="color-dot" style="background:#007AFF;" onclick="applyColor('#007AFF')"></div>
+            <div class="color-dot" style="background:#AF52DE;" onclick="applyColor('#AF52DE')"></div>
+            <div class="color-dot" style="background:#FF2D55;" onclick="applyColor('#FF2D55')"></div>
+        </div>
+        <div style="width:1px; height:30px; background:rgba(255,255,255,0.1); margin:0 5px;"></div>
+        <button class="dash-btn" onclick="applyDash([])">SÓLIDA</button>
+        <button class="dash-btn" onclick="applyDash([10, 5])">PUNTEADA</button>
+    </div>
+
+    <script>
+        // FUNCIÓN NUEVA PARA CAMBIAR ESCUDOS
+        window.updateShield = (event, imgId) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.getElementById(imgId);
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                    img.nextElementSibling.style.display = 'none'; // Oculta el placeholder
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+
+        let rawX = 0, rawY = 0;
+        const captureMouse = (e) => {
+            rawX = e.clientX; 
+            rawY = e.clientY; 
+        };
+        window.addEventListener('pointermove', captureMouse, { capture: true, passive: true });
+        window.addEventListener('pointerdown', captureMouse, { capture: true, passive: true });
+        window.addEventListener('touchmove', (e) => { if (mode !== 'move') e.preventDefault(); }, { passive: false });
+
+        function lightenColor(hex, amount) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            const r = Math.min(255, (num >> 16) + amount);
+            const g = Math.min(255, ((num >> 8) & 0xFF) + amount);
+            const b = Math.min(255, (num & 0xFF) + amount);
+            return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+        function darkenColor(hex, amount) {
+            const num = parseInt(hex.replace('#', ''), 16);
+            const r = Math.max(0, (num >> 16) - amount);
+            const g = Math.max(0, ((num >> 8) & 0xFF) - amount);
+            const b = Math.max(0, (num & 0xFF) - amount);
+            return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        const REAL_W = 105, REAL_H = 68;
+        const ASPECT = REAL_W / REAL_H;
+        let canvasW, canvasH, mode = 'move', isDrawing = false, currentShape = null, selectedNode = null;
+        let objectsStack = [], transformer, polyPoints = [];
+
+        const mPx = (m) => (m / REAL_W) * canvasW;
+        const mPxH = (m) => (m / REAL_H) * canvasH;
+
+        const ballBase64 = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><radialGradient id="grad" cx="40" cy="35" r="50" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fff"/><stop offset="80%" stop-color="#e0e0e0"/><stop offset="100%" stop-color="#aaa"/></radialGradient></defs><circle cx="50" cy="50" r="48" fill="url(#grad)" stroke="#111" stroke-width="2"/><path d="M50 8 L65 20 L60 38 L40 38 L35 20 Z" fill="#222"/><path d="M85 35 L95 50 L85 65 L70 60 L70 40 Z" fill="#222"/><path d="M15 35 L5 50 L15 65 L30 60 L30 40 Z" fill="#222"/><path d="M50 92 L65 80 L60 62 L40 62 L35 80 Z" fill="#222"/><path d="M78 18 L88 28 L80 43 L65 43 L63 28 Z" fill="#222" opacity="0.3"/><path d="M22 18 L12 28 L20 43 L35 43 L37 28 Z" fill="#222" opacity="0.3"/><circle cx="40" cy="35" r="10" fill="#fff" opacity="0.4"/></svg>`);
+        const goalImg = new Image(); goalImg.src = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120"><defs><linearGradient id="metalG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff"/><stop offset="50%" stop-color="#888"/><stop offset="100%" stop-color="#444"/></linearGradient><pattern id="netH" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/></pattern></defs><path d="M 30 15 L 210 15 L 230 105 L 10 105 Z" fill="url(#netH)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/><path d="M 30 15 L 10 105 M 210 15 L 230 105" stroke="rgba(255,255,255,0.6)" stroke-width="3"/><line x1="30" y1="15" x2="210" y2="15" stroke="url(#metalG)" stroke-width="8" stroke-linecap="round"/><line x1="30" y1="15" x2="10" y2="105" stroke="url(#metalG)" stroke-width="8" stroke-linecap="round"/><line x1="210" y1="15" x2="230" y2="105" stroke="url(#metalG)" stroke-width="8" stroke-linecap="round"/><circle cx="30" cy="15" r="4.5" fill="#fff"/><circle cx="210" cy="15" r="4.5" fill="#fff"/></svg>`);
+        const coneBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImNvbmVHcmFkIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2Q5MzgxZSIvPjxzdG9wIG9mZnNldD0iNTAlIiBzdG9wLWNvbG9yPSIjZmY2YjM1Ii8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjYjQyYjE1Ii8+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgaWQ9ImJhc2VHcmFkIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2I0MmIxNSIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzhhMjAxMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxlbGxpcHNlIGN4PSI1MCIgY3k9IjkwIiByeD0iNDAiIHJ5PSIxMCIgZmlsbD0idXJsKCNiYXNlR3JhZCkiIC8+PHBhdGggZD0iTSA0NSAxMCBRIDUwIDUgNTUgMTAgTCA4NSA5MCBRIDUwIDEwMCAxNSA5MCBaIiBmaWxsPSJ1cmwoI2NvbmVHcmFkKSIgLz48cGF0aCBkPSJNIDQwIDMwIFEgNTAgMzUgNjAgMzAgTCA2NSA0NSBRIDUwIDUwIDM1IDQ1IFoiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuOSIgLz48cGF0aCBkPSJNIDMzIDYwIFEgNTAgNjUgNjcgNjAgTCA3MiA3NSBRIDUwIDgwIDI4IDc1IFoiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuOSIgLz48cGF0aCBkPSJNIDUwIDEwIFEgNDAgNTAgNDUgOTAgUSA1MCA1MCA1NSAxMCBaIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMykiIC8+PC9zdmc+';
+        const vallaBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNIDIwIDk1IEwgMjAgMzAgUSAyMCAyMCA1MCAyMFEgODAgMjAgODAgMzAgTCA4MCA5NSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZTBlMGUwIiBzdHJva2Utd2lkdGg9IjgiIC8+PHBhdGggZD0iTSA1IDkwIEwgMzUgOTAgTSA2NSA5MCBMIDk1IDkwIiBzdHJva2U9IiM0NDQiIHN0cm9rZS13aWR0aD0iMTIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz48cGF0aCBkPSJNIDIwIDUwIEwgODAgNTAiIHN0cm9rZT0iI2ZmNGQ0ZCIgc3Ryb2tlLXdpZHRoPSIxMCIgLz48L3N2Zz4=';
+        const wallBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImR1bW15Q29sb3IiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjZmZjMTA3IiAvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2UwYTgwMCIgLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48ZyBmaWxsPSJ1cmwoI2R1bW15Q29sb3IpIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMS41Ij48Y2lyY2xlIGN4PSIyMCIgY3k9IjI1IiByPSIxMCIgLz48cGF0aCBkPSJNIDUgOTUgTCAxMCA0MCBRIDIwIDM1IDMwIDQwIEwgMzUgOTUgWiIgLz48Y2lyY2xlIGN4PSI1MCIgY3k9IjIwIiByPSIxMCIgLz48cGF0aCBkPSJNIDM1IDk1IEwgNDAgMzUgUSA1MCAzMCA2MCAzNSBMIDY1IDk1IFoiIC8+PGNpcmNsZSBjeD0iODAiIGN5PSIyNSIgcj0iMTAiIC8+PHBhdGggZD0iTSA2NSA5NSBMIDcwIDQwIFEgODAgMzUgOTAgNDAgTCA5NSA5NSBaIiAvPjwvZz48cGF0aCBkPSJNIDUgOTUgTCA5NSA5NSIgc3Ryb2tlPSIjMjIyIiBzdHJva2Utd2lkdGg9IjQiIC8+PC9zdmc+';
+        const dummyBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImR1bW15Q29sb3IiIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjZmQ1YzYzIiAvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2M5MzAzNyIgLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48ZyBmaWxsPSJ1cmwoI2R1bW15Q29sb3IpIiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMiI+PGNpcmNsZSBjeD0iNTAiIGN5PSIyMCIgcj0iMTUiIC8+PHBhdGggZD0iTSAyNSA5NSBMIDM1IDQ1IFEgNTAgMzUgNjUgNDUgTCA3NSA5NSBaIiAvPjwvZz48cGF0aCBkPSJNIDE1IDk1IEwgODUgOTUiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI4IiAvPjwvc3ZnPg==';
+
+        const ballImg = new Image(); ballImg.src = ballBase64;
+        const coneImg = new Image(); coneImg.src = coneBase64; document.getElementById('cone-btn-img').src = coneBase64;
+        const vallaImg = new Image(); vallaImg.src = vallaBase64; document.getElementById('valla-btn-img').src = vallaBase64;
+        const wallImg = new Image(); wallImg.src = wallBase64; document.getElementById('wall-btn-img').src = wallBase64;
+        const dummyImg = new Image(); dummyImg.src = dummyBase64; document.getElementById('dummy-btn-img').src = dummyBase64;
+        const checkImg = new Image(); checkImg.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNMjAgNTAgTDQ1IDc1IEw4NSAyNSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMzRDNzU5IiBzdHJva2Utd2lkdGg9IjEyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=';
+        const crossImg = new Image(); crossImg.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNMjUgMjUgTDc1IDc1IE03NSAyNSBMMjUgNzUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0ZGM0IzMCIgc3Ryb2tlLXdpZHRoPSIxMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+';
+
+        function updateSize() {
+            if (window.innerWidth / window.innerHeight > ASPECT) { canvasH = window.innerHeight * 0.82; canvasW = canvasH * ASPECT; }
+            else { canvasW = window.innerWidth * 0.88; canvasH = canvasW / ASPECT; }
+            try { 
+                if (typeof stage !== 'undefined' && stage) { 
+                    stage.width(canvasW); stage.height(canvasH); 
+                    if (typeof layer !== 'undefined' && layer) layer.draw();
+                } 
+            } catch(e) {}
+        }
+        window.addEventListener('resize', updateSize);
+        updateSize();
+
+        const stage = new Konva.Stage({ container: 'canvas-container', width: canvasW, height: canvasH });
+        const layer = new Konva.Layer();
+        stage.add(layer);
+
+        const _origSetPointers = stage.setPointersPositions.bind(stage);
+        stage.setPointersPositions = function (evt) {
+            _origSetPointers(evt); 
+            const container = document.getElementById('canvas-container');
+            if (!container.classList.contains('is-3d')) return;
+            if (!this.pointerPos) return;
+            const xs = this.pointerPos.x - canvasW / 2;
+            const ys = this.pointerPos.y - canvasH / 2;
+            const P = 1000; 
+            const th = 40 * Math.PI / 180;
+            let d = P * Math.cos(th) - ys * Math.sin(th);
+            if (Math.abs(d) < 1) d = 1;
+            const yL = (ys * P) / d;
+            const xL = xs * (P + yL * Math.sin(th)) / P; 
+            const correctedPos = { x: xL + canvasW / 2, y: yL + canvasH / 2 };
+            this.pointerPos = correctedPos; 
+            if (this._changedPointerPositions) {
+                this._changedPointerPositions.forEach(p => { p.x = correctedPos.x; p.y = correctedPos.y; });
+            }
+        };
+
+        transformer = new Konva.Transformer({ 
+            anchorSize: 10, anchorStroke: '#00f2ff', borderStroke: '#00f2ff', rotateEnabled: true,
+            rotateAnchorOffset: 25, 
+            enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+            name: 'piece-transformer'
+        });
+        layer.add(transformer);
+
+        function createPitch() {
+            const lineCfg = { stroke: 'rgba(255,255,255,0.85)', strokeWidth: mPx(0.12), listening: false };
+            const glass = new Konva.Rect({
+                x: -canvasW * 2, y: -canvasH * 2, width: canvasW * 5, height: canvasH * 5,
+                fill: 'rgba(0,0,0,0)', name: 'field-glass', listening: true
+            });
+            layer.add(glass);
+            layer.add(new Konva.Rect({
+                x: 0, y: 0, width: canvasW, height: canvasH,
+                fillLinearGradientStartPoint: { x: 0, y: 0 },
+                fillLinearGradientEndPoint: { x: 0, y: canvasH },
+                fillLinearGradientColorStops: [0, '#2d6a36', 1, '#479f53'],
+                name: 'bg', listening: true 
+            }));
+            const stripes = 14; const sw = canvasW / stripes;
+            for (let i = 0; i < stripes; i += 2) {
+                layer.add(new Konva.Rect({
+                    x: i * sw, y: 0, width: sw, height: canvasH,
+                    fillLinearGradientStartPoint: { x: 0, y: 0 },
+                    fillLinearGradientEndPoint: { x: 0, y: canvasH },
+                    fillLinearGradientColorStops: [0, '#32773c', 1, '#4ebd5b'],
+                    listening: false
+                }));
+            }
+            layer.add(new Konva.Rect({ x: 0, y: 0, width: canvasW, height: canvasH, ...lineCfg }));
+            layer.add(new Konva.Line({ points: [canvasW / 2, 0, canvasW / 2, canvasH], ...lineCfg }));
+            layer.add(new Konva.Circle({ x: canvasW / 2, y: canvasH / 2, radius: (9.15 / 105) * canvasW, ...lineCfg }));
+            const boxW = mPx(16.5), boxH = mPxH(40.3), sBoxW = mPx(5.5), sBoxH = mPxH(18.3);
+            const pSpotDist = mPx(11);
+            const arcRadius = mPx(9.15);
+            const arcAngle = Math.acos(5.5 / 9.15) * 2 * (180 / Math.PI);
+
+            [0, canvasW - boxW].forEach(x => layer.add(new Konva.Rect({ x, y: (canvasH - boxH) / 2, width: boxW, height: boxH, ...lineCfg })));
+            [0, canvasW - sBoxW].forEach(x => layer.add(new Konva.Rect({ x, y: (canvasH - sBoxH) / 2, width: sBoxW, height: sBoxH, ...lineCfg })));
+            layer.add(new Konva.Circle({ x: pSpotDist, y: canvasH / 2, radius: mPx(0.2), fill: '#fff', listening: false }));
+            layer.add(new Konva.Circle({ x: canvasW - pSpotDist, y: canvasH / 2, radius: mPx(0.2), fill: '#fff', listening: false }));
+            
+            layer.add(new Konva.Arc({
+                x: pSpotDist, y: canvasH / 2,
+                innerRadius: arcRadius, outerRadius: arcRadius,
+                angle: arcAngle, rotation: -arcAngle / 2,
+                ...lineCfg
+            }));
+            layer.add(new Konva.Arc({
+                x: canvasW - pSpotDist, y: canvasH / 2,
+                innerRadius: arcRadius, outerRadius: arcRadius,
+                angle: arcAngle, rotation: 180 - arcAngle / 2,
+                ...lineCfg
+            }));
+        }
+        createPitch();
+
+        function updateLabels(group) {
+            const main = group.findOne('.main');
+            if (!main) return;
+            const sx = Math.abs(group.scaleX() || 1); const sy = Math.abs(group.scaleY() || 1);
+
+            if (main instanceof Konva.Rect && !group.hasName('poly')) {
+                const wM = (main.width() * sx / canvasW * REAL_W).toFixed(1);
+                const hM = (main.height() * sy / canvasH * REAL_H).toFixed(1);
+                let mW = group.findOne('.mW'), mH = group.findOne('.mH');
+                if (!mW) { mW = new Konva.Text({ name: 'mW', fontSize: 10, fill: '#fff', fontStyle: 'bold', listening: false }); group.add(mW); }
+                if (!mH) { mH = new Konva.Text({ name: 'mH', fontSize: 10, fill: '#fff', fontStyle: 'bold', listening: false }); group.add(mH); }
+                mW.scaleX(1/sx); mW.scaleY(1/sy); mH.scaleX(1/sx); mH.scaleY(1/sy);
+                mW.text(wM + 'm'); mW.x(main.width() / 2 - 10); mW.y(-15);
+                mH.text(hM + 'm'); mH.x(main.width() + 5); mH.y(main.height() / 2 - 5);
+                return;
+            }
+
+            if (group.hasName('poly') && main.className === 'Line') {
+                const pts = main.points();
+                const pairs = pts.length / 2;
+                const sideCount = main.closed() ? pairs : Math.max(0, pairs - 1);
+                for (let i = 0; i < sideCount; i++) {
+                    const idx1 = i * 2;
+                    const idx2 = main.closed() && i === sideCount - 1 ? 0 : (i * 2) + 2;
+                    const px1 = pts[idx1], py1 = pts[idx1 + 1], px2 = pts[idx2], py2 = pts[idx2 + 1];
+                    const dxPx = (px2 - px1) * sx; const dyPx = (py2 - py1) * sy;
+                    const dist = Math.sqrt(Math.pow((dxPx / canvasW) * REAL_W, 2) + Math.pow((dyPx / canvasH) * REAL_H, 2));
+                    let txt = group.findOne(`.m${i}`);
+                    if (!txt) {
+                        txt = new Konva.Text({ name: `m${i}`, fontSize: 10, fill: '#fff', fontStyle: 'bold', listening: false });
+                        group.add(txt);
+                    }
+                    txt.scaleX(1 / sx); txt.scaleY(1 / sy);
+                    if (dist < 0.1) txt.hide();
+                    else { txt.show(); txt.text(dist.toFixed(1) + 'm'); txt.x(px1 + (px2 - px1) / 2 + 5); txt.y(py1 + (py2 - py1) / 2 - 10); }
+                }
+                return;
+            }
+
+            if (main instanceof Konva.Arrow) {
+                const pts = main.points(); if (pts.length < 4) return;
+                const dxM = (pts[pts.length - 2] - pts[0]) * sx / canvasW * REAL_W;
+                const dyM = (pts[pts.length - 1] - pts[1]) * sy / canvasH * REAL_H;
+                const dist = Math.sqrt(dxM * dxM + dyM * dyM);
+                let txt = group.findOne('.m1');
+                if (!txt) { txt = new Konva.Text({ name: 'm1', fontSize: 10, fill: '#fff', fontStyle: 'bold', listening: false }); group.add(txt); }
+                txt.scaleX(1 / sx); txt.scaleY(1 / sy);
+                if (dist > 0.5) { 
+                    txt.text(dist.toFixed(1) + 'm'); 
+                    txt.x(pts[pts.length - 2] + 5); txt.y(pts[pts.length - 1] - 15); 
+                    txt.show(); 
+                }
+                else txt.hide();
+            }
+        }
+
+        function setMode(m) {
+            const is3D = document.getElementById('canvas-container').classList.contains('is-3d');
+            if (is3D && m !== 'move') { alert("Para dibujar, cambia a MODO 2D DIBUJO."); return; }
+            mode = m;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            if (document.getElementById('btn-' + m)) document.getElementById('btn-' + m).classList.add('active');
+            const glass = layer.findOne('.field-glass');
+            if (glass) { if (m === 'move') glass.moveToBottom(); else glass.moveToTop(); }
+            isDrawing = false;
+            layer.draw();
+        }
+
+        function startDrawingAction(pos) {
+            if (isDrawing && mode !== 'poly') return;
+            const sharedStroke = mPx(0.15); 
+
+            if (mode === 'poly') {
+                if (!isDrawing) {
+                    isDrawing = true;
+                    currentShape = new Konva.Group({ x: 0, y: 0, draggable: true, name: 'piece poly', pieceType: 'drawing' });
+                    polyPoints = [pos.x, pos.y];
+                    currentShape.add(new Konva.Line({ points: polyPoints, fill: 'rgba(255,255,255,0.2)', stroke: '#fff', strokeWidth: sharedStroke, hitStrokeWidth: 8, closed: false, name: 'main' }));
+                    layer.add(currentShape); objectsStack.push(currentShape);
+                } else {
+                    const dx = pos.x - polyPoints[0], dy = pos.y - polyPoints[1];
+                    if (polyPoints.length >= 6 && Math.hypot(dx, dy) < 15) {
+                        isDrawing = false;
+                        currentShape.findOne('.main').closed(true);
+                        currentShape.on('transform dragmove', () => updateLabels(currentShape));
+                        updateLabels(currentShape); setMode('move');
+                        transformer.nodes([currentShape]); selectedNode = currentShape;
+                        document.getElementById('prop-panel').style.display = 'flex';
+                    } else { polyPoints.push(pos.x, pos.y); }
+                }
+                layer.draw(); return;
+            }
+
+            isDrawing = true;
+            const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true, name: 'piece', pieceType: 'drawing' });
+            
+            if (mode === 'arrow') { 
+                group.add(new Konva.Arrow({ points: [0, 0, 0, 0], fill: 'white', stroke: 'white', strokeWidth: sharedStroke, pointerLength: 10, pointerWidth: 8, name: 'main' })); 
+            }
+            else if (mode === 'line') { 
+                group.add(new Konva.Line({ points: [0, 0, 0, 0], stroke: 'white', strokeWidth: sharedStroke, name: 'main' })); 
+            }
+            else if (mode === 'curve') { 
+                group.add(new Konva.Arrow({ points: [0, 0], tension: 0.5, fill: 'white', stroke: 'white', strokeWidth: sharedStroke, pointerLength: 10, pointerWidth: 8, name: 'main' })); 
+            }
+            else if (mode === 'zone') { 
+                group.add(new Konva.Rect({ x: 0, y: 0, width: 0, height: 0, fill: 'rgba(255,255,255,0.2)', stroke: '#fff', strokeWidth: sharedStroke, name: 'main' })); 
+            }
+            currentShape = group; layer.add(group); objectsStack.push(group); layer.draw();
+        }
+
+        document.getElementById('main-wrapper').onpointerdown = (e) => {
+            stage.setPointersPositions(e);
+            const pos = stage.getPointerPosition();
+            if (!pos) return;
+
+            if (mode === 'move') {
+                const intersection = stage.getIntersection(pos);
+                if (intersection && (intersection.getParent()?.hasName('piece-transformer') || intersection.hasName('piece-transformer'))) return;
+                let target = null;
+                if (intersection) {
+                    target = intersection.getParent()?.hasName('piece') ? intersection.getParent() : (intersection.hasName('piece') ? intersection : null);
+                }
+                if (target) {
+                    selectedNode = target; transformer.nodes([target]); 
+                    transformer.moveToTop();
+                    document.getElementById('prop-panel').style.display = 'flex';
+                    target.on('transform dragmove', () => updateLabels(target));
+                } else {
+                    transformer.nodes([]);
+                    document.getElementById('prop-panel').style.display = 'none';
+                    selectedNode = null;
+                }
+                layer.draw();
+            } else { startDrawingAction(pos); }
+            if (mode !== 'move') e.stopPropagation();
+        };
+
+        stage.on('pointermove', (e) => {
+            if (!isDrawing || !currentShape || mode === 'move') return;
+            const pos = stage.getPointerPosition();
+            if (!pos) return;
+            const main = currentShape.findOne('.main');
+            
+            if (mode === 'poly') { 
+                main.points([...polyPoints, pos.x, pos.y]); 
+                updateLabels(currentShape); 
+                layer.batchDraw(); 
+                return; 
+            }
+            const dx = pos.x - currentShape.x();
+            const dy = pos.y - currentShape.y();
+            
+            if (mode === 'arrow' || mode === 'line') {
+                main.points([0, 0, dx, dy]); 
+            }
+            else if (mode === 'zone') { 
+                main.width(dx); 
+                main.height(dy); 
+            }
+            else if (mode === 'curve') {
+                const pts = main.points();
+                if (pts.length === 2) {
+                    main.points([0, 0, dx, dy]);
+                } else {
+                    const lastX = pts[pts.length - 2];
+                    const lastY = pts[pts.length - 1];
+                    if (Math.hypot(dx - lastX, dy - lastY) > 5) {
+                        main.points(pts.concat([dx, dy]));
+                    }
+                }
+            }
+            updateLabels(currentShape); 
+            layer.batchDraw();
+        });
+
+        stage.on('pointerup', () => {
+            if (mode === 'poly') return;
+            if (isDrawing) {
+                isDrawing = false;
+                setMode('move');
+                transformer.nodes([currentShape]); 
+                selectedNode = currentShape;
+                currentShape.on('transform dragmove', () => updateLabels(currentShape));
+                document.getElementById('prop-panel').style.display = 'flex'; 
+                layer.draw();
+            }
+        });
+
+        window.addPiece = (type, color) => {
+            setMode('move');
+            const shadowProps = { shadowColor: 'rgba(0,0,0,0.5)', shadowBlur: 8, shadowOffset: { x: -2, y: 10 }, shadowOpacity: 0.6 };
+            const g = new Konva.Group({ x: canvasW / 2, y: canvasH / 2, draggable: true, name: 'piece physical', pieceType: type });
+            const hitAreaSize = 25; 
+            g.add(new Konva.Circle({ radius: hitAreaSize, fill: 'rgba(0,0,0,0)', listening: true, name: 'hit-area' }));
+
+            if (type === 'player') {
+                const r = (mPx(1.8) / 2) * 1.5;
+                const fillGrad = {
+                    fillRadialGradientStartPoint: { x: -r * 0.3, y: -r * 0.4 },
+                    fillRadialGradientStartRadius: 0,
+                    fillRadialGradientEndPoint: { x: 0, y: 0 },
+                    fillRadialGradientEndRadius: r * 1.1,
+                    fillRadialGradientColorStops: [0, lightenColor(color, 60), 0.5, color, 1, darkenColor(color, 40)]
+                };
+                g.add(new Konva.Circle({ radius: r, ...fillGrad, stroke: 'rgba(255,255,255,0.8)', strokeWidth: 1.5, name: 'main', ...shadowProps }));
+                g.add(new Konva.Text({ text: '1', fontSize: r, fontStyle: 'bold', fill: '#fff', width: r * 2, height: r * 2, offsetX: r, offsetY: r, align: 'center', verticalAlign: 'middle', listening: false }));
+                g.on('dblclick dbltap', () => { let n = prompt("Dorsal:"); if (n !== null) g.findOne('Text').text(n); layer.draw(); });
+            }
+            else if (type === 'ball') {
+                const r = mPx(0.8);
+                g.add(new Konva.Image({ image: ballImg, x: -r, y: -r, width: r * 2, height: r * 2, name: 'main', ...shadowProps }));
+            }
+            else if (type === 'goal') {
+                const gw = mPx(7.32) * 1.5; const gh = gw / 2;
+                g.add(new Konva.Image({ image: goalImg, x: -gw / 2, y: -gh / 2, width: gw, height: gh, name: 'main', ...shadowProps }));
+                g.scaleY(0.4);
+            }
+            else if (type === 'cone') {
+                const r = mPx(1.2);
+                g.add(new Konva.Image({ image: coneImg, x: -r, y: -r, width: r * 2, height: r * 2, name: 'main', ...shadowProps }));
+            }
+            else if (type === 'check') {
+                const r = mPx(1.5);
+                g.add(new Konva.Image({ image: checkImg, x: -r, y: -r, width: r * 2, height: r * 2, name: 'main' }));
+            }
+            else if (type === 'cross') {
+                const r = mPx(1.2);
+                g.add(new Konva.Image({ image: crossImg, x: -r, y: -r, width: r * 2, height: r * 2, name: 'main' }));
+            }
+            else { 
+                let w = mPx(2.5), h = mPx(3);
+                if (type === 'wall') { w = mPx(5.5); h = mPx(3.5); }
+                if (type === 'dummy') { w = mPx(3.2); h = mPx(5.8); }
+                
+                const imgMap = { valla: vallaImg, wall: wallImg, dummy: dummyImg };
+                g.add(new Konva.Image({ image: imgMap[type], x: -w / 2, y: -h / 2, width: w, height: h, name: 'main', ...shadowProps }));
+            }
+            g.on('transform dragmove', () => updateLabels(g));
+            layer.add(g); objectsStack.push(g); transformer.nodes([g]); selectedNode = g; layer.draw();
+        };
+
+        window.duplicateSelected = () => { if (!selectedNode) return; const clone = selectedNode.clone({ x: selectedNode.x() + 25, y: selectedNode.y() + 25 }); clone.on('transform dragmove', () => updateLabels(clone)); layer.add(clone); objectsStack.push(clone); transformer.nodes([clone]); selectedNode = clone; layer.draw(); };
+        window.deleteSelected = () => { if (selectedNode) { selectedNode.destroy(); transformer.nodes([]); selectedNode = null; document.getElementById('prop-panel').style.display = 'none'; layer.draw(); } };
+        window.undo = () => { if (objectsStack.length) { const last = objectsStack.pop(); last.destroy(); transformer.nodes([]); layer.draw(); } };
+
+        window.applyColor = (c) => {
+            if (selectedNode) {
+                selectedNode.find('.main').forEach(m => {
+                    m.stroke(c);
+                    const rgb = Konva.Util.getRGB(c);
+                    const rgba20 = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2)`;
+                    if (m instanceof Konva.Circle) { m.fill(c); } 
+                    else if (m instanceof Konva.Rect || (m instanceof Konva.Line && m.closed())) { m.fill(rgba20); } 
+                    else if (m instanceof Konva.Arrow) { m.fill(c); }
+                });
+                layer.draw();
+            }
+        };
+
+        window.applyDash = (d) => { if (selectedNode) { selectedNode.find('.main').forEach(m => m.dash(d)); layer.draw(); } };
+
+        window.exportImage = () => {
+            transformer.nodes([]); layer.draw();
+            const dataURL = stage.toDataURL({ pixelRatio: 2, mimeType: 'image/jpeg', quality: 0.9 });
+            const link = document.createElement('a');
+            link.download = 'Nexus-Tactical-Export.jpg';
+            link.href = dataURL;
+            link.click();
+        };
+
+        document.getElementById('btn-3d').onclick = () => {
+            const container = document.getElementById('canvas-container');
+            const btn = document.getElementById('btn-3d');
+            const is3D = container.classList.contains('is-3d');
+            
+            if (is3D) {
+                container.classList.remove('is-3d');
+                btn.innerHTML = '🌍 2D DIBUJO';
+                btn.style.background = 'var(--cyan)';
+                btn.style.borderColor = 'var(--cyan)';
+                btn.style.boxShadow = '0 0 12px var(--cyan)';
+            } else {
+                setMode('move');
+                container.classList.add('is-3d');
+                btn.innerHTML = '🌍 3D TÁCTICO';
+                btn.style.background = 'var(--orange)';
+                btn.style.borderColor = 'var(--orange)';
+                btn.style.boxShadow = '0 0 12px var(--orange)';
+            }
+            layer.draw();
+        };
+
+        const sidebar = document.getElementById('sidebar'); let isDrag = false, offX, offY;
+        sidebar.onmousedown = (e) => { if (e.target == sidebar) { isDrag = true; offX = e.clientX - sidebar.offsetLeft; offY = e.clientY - sidebar.offsetTop; } };
+        document.onmousemove = (e) => { if (isDrag) { sidebar.style.left = (e.clientX - offX) + 'px'; sidebar.style.top = (e.clientY - offY) + 'px'; } };
+        document.onmouseup = () => isDrag = false;
+    </script>
+</body>
+
+</html>
